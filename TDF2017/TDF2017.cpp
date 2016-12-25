@@ -6,146 +6,190 @@
 #include <thread>
 #include <iostream>
 #include <vector>
+#include <queue>
+using tstring = std::basic_string<TCHAR>;
 
-// エラーの表示
-static void ShowError(LPCTSTR msg)
+#if defined(UNICODE) || defined(_UNICODE)
+#define TCOUT std::wcout
+#else
+#define TCOUT std::cout
+#endif
+
+enum class FileActionType
 {
-	DWORD errcode = GetLastError();
-	_tprintf(_T("%s errorcode: %lx\r\n"), msg, errcode);
-}
+	kAdded = FILE_ACTION_ADDED,
+	kRemoved = FILE_ACTION_REMOVED,
+	kModified = FILE_ACTION_MODIFIED,
+	kRenamedOld = FILE_ACTION_RENAMED_OLD_NAME,
+	kRenamedNew = FILE_ACTION_RENAMED_NEW_NAME,
+};
+
+struct FileAction
+{
+	FileActionType action_type_;
+	tstring file_name_;
+};
 
 class FileChangeMonitor
 {
-public:
-	void Run()
-	{
-		// オプション引数の値を保持する
-		auto m_directory_name = _T("Test");
-		size_t m_buffer_size = 1024 * 8;
-		auto waittime = 0;
+	tstring directory_name_;
+	const size_t buffer_size_ = 1024 * 8;
+	HANDLE directory_handle_ = nullptr;
+	HANDLE event_handle_ = nullptr;
+	std::vector<unsigned char> buf_;
+	OVERLAPPED olp_;
+	std::queue<FileAction> fileActions_;
 
-		HANDLE m_directoryHandle = CreateFile(m_directory_name, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+public:
+
+	bool init(tstring directory_name)
+	{
+		directory_name_ = directory_name;
+
+		directory_handle_ = CreateFile(directory_name_.c_str(), FILE_LIST_DIRECTORY, 
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
 			OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
-		if (m_directoryHandle == INVALID_HANDLE_VALUE)
+
+		if (directory_handle_ == INVALID_HANDLE_VALUE)
 		{
-			ShowError(_T("CreateFileでの失敗"));
+			return false;
+		}
+
+		buf_.resize(buffer_size_);
+
+		event_handle_ = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+
+		return true;
+	}
+
+	void run()
+	{
+		init(L"Test");
+		begin_read_changes();
+		while (true)
+		{
+			while(wait())
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			} 
+			read_changes();
+			while (fileActions_.size() > 0)
+			{
+				auto file_action = fileActions_.front();
+				fileActions_.pop();
+				tstring action_type = L"";
+				
+				switch (file_action.action_type_)
+				{
+				case FileActionType::kAdded:
+					action_type = L"Added";
+					break;
+				case FileActionType::kRemoved:
+					action_type = L"Removed";
+					break;
+				case FileActionType::kModified:
+					action_type = L"Modified";
+					break;
+				case FileActionType::kRenamedOld:
+					action_type = L"RenamedOld";
+					break;
+				case FileActionType::kRenamedNew:
+					action_type = L"RenamedNew";
+					break;
+				default: 
+					break;
+				}
+				_tprintf_s(L"%s\n", file_action.file_name_.c_str());
+				_tprintf_s(L"%s\n", action_type.c_str());
+				
+			}
+			begin_read_changes();
+		}
+
+		release();
+	}
+
+	void release() const
+	{
+		CloseHandle(event_handle_);
+		CloseHandle(directory_handle_);
+	}
+
+	bool begin_read_changes()
+	{
+		ResetEvent(event_handle_);
+
+		olp_ = { 0 };
+		olp_.hEvent = event_handle_;
+
+		const DWORD filter =
+			FILE_NOTIFY_CHANGE_FILE_NAME |
+			FILE_NOTIFY_CHANGE_DIR_NAME |
+			FILE_NOTIFY_CHANGE_ATTRIBUTES |
+			FILE_NOTIFY_CHANGE_SIZE |
+			FILE_NOTIFY_CHANGE_LAST_WRITE;
+		if (!ReadDirectoryChangesW(directory_handle_, &buf_[0], buffer_size_, TRUE, filter, nullptr, &olp_, nullptr))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	bool wait() const
+	{
+		auto waitResult = WaitForSingleObject(event_handle_, 0);
+		if (waitResult != WAIT_TIMEOUT)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	void read_changes()
+	{
+		DWORD retsize = 0;
+		if (!GetOverlappedResult(directory_handle_, &olp_, &retsize, FALSE))
+		{
 			return;
 		}
 
-		DWORD filter = FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
-			FILE_NOTIFY_CHANGE_ATTRIBUTES |  FILE_NOTIFY_CHANGE_SIZE |  FILE_NOTIFY_CHANGE_LAST_WRITE;
-
-		std::vector<unsigned char> buf(m_buffer_size);
-		void* pBuf = &buf[0];
-
-		HANDLE m_eventHandle = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-
-		for (;;)
+		if (retsize == 0)
 		{
-			const auto mx = waittime * 10;
-			for (auto idx = 0; idx < mx; idx++)
-			{
-				_tprintf(_T("sleep... %d/%d \r"), idx + 1, mx);
-				Sleep(100);
-			}
-			_tprintf(_T("\r\nstart.\r\n"));
-
-			ResetEvent(m_eventHandle);
-
-			OVERLAPPED olp = {0};
-			olp.hEvent = m_eventHandle;
-
-			if (!ReadDirectoryChangesW(m_directoryHandle, pBuf, m_buffer_size, TRUE, filter, nullptr, &olp, nullptr))
-			{
-				ShowError(_T("ReadDirectoryChangesWでの失敗"));
-				break;
-			}
-
-			while (true)
-			{
-				DWORD waitResult = WaitForSingleObject(m_eventHandle, 500);
-				if (waitResult != WAIT_TIMEOUT)
-				{
-					break;
-				}
-				_tprintf(_T("."));
-			}
-			_tprintf(_T("\r\n"));
-
-			if (false)
-			{
-				CancelIo(m_directoryHandle);
-				WaitForSingleObject(m_eventHandle, INFINITE);
-				break;
-			}
-
-			DWORD retsize = 0;
-			if (!GetOverlappedResult(m_directoryHandle, &olp, &retsize, FALSE))
-			{
-				ShowError(_T("GetOverlappedResultでの失敗"));
-				break;
-			}
-
-			_tprintf(_T("returned size=%ld\r\n"), retsize);
-
-			if (retsize == 0)
-			{
-				_tprintf(_T("buffer overflow!!\r\n"));
-			}
-			else
-			{
-				FILE_NOTIFY_INFORMATION* pData =
-					reinterpret_cast<FILE_NOTIFY_INFORMATION*>(pBuf);
-
-				for (;;)
-				{
-					TCHAR* pActionMsg = _T("UNKNOWN");
-					switch (pData->Action)
-					{
-					case FILE_ACTION_ADDED:
-						pActionMsg = _T("Added");
-						break;
-					case FILE_ACTION_REMOVED:
-						pActionMsg = _T("Removed");
-						break;
-					case FILE_ACTION_MODIFIED:
-						pActionMsg = _T("Modified");
-						break;
-					case FILE_ACTION_RENAMED_OLD_NAME:
-						pActionMsg = _T("Rename Old");
-						break;
-					case FILE_ACTION_RENAMED_NEW_NAME:
-						pActionMsg = _T("Rename New");
-						break;
-					}
-
-					DWORD lenBytes = pData->FileNameLength;
-					std::vector<WCHAR> fileName(lenBytes / sizeof(WCHAR) + 1);
-					memcpy(&fileName[0], pData->FileName, lenBytes);
-
-					_tprintf(_T("[%s]<%s>\r\n"), pActionMsg, &fileName[0]);
-
-					if (pData->NextEntryOffset == 0)
-					{
-						break;
-					}
-					pData = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(
-						reinterpret_cast<unsigned char*>(pData) + pData->NextEntryOffset);
-				}
-			}
+			return;
 		}
+		auto pData = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(&buf_[0]);
 
-		CloseHandle(m_eventHandle);
-		CloseHandle(m_directoryHandle);
+		while (true)
+		{
+			FileAction action;
+			action.action_type_ = static_cast<FileActionType>(pData->Action);
+			action.file_name_ = tstring(pData->FileName).substr(0, pData->FileNameLength / sizeof(TCHAR));
+
+			fileActions_.push(action);
+
+			if (pData->NextEntryOffset == 0)
+			{
+				return;
+			}
+			pData = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(
+				reinterpret_cast<unsigned char*>(pData) + pData->NextEntryOffset);
+		}
+	}
+
+	void break_event() const
+	{
+		CancelIo(directory_handle_);
+		WaitForSingleObject(event_handle_, INFINITE);
 	}
 };
 
 // メインエントリ
-int main(int argc, _TCHAR* argv[])
+int main(void)
 {
 	// コンソール出力を日本語可能に
 	setlocale(LC_ALL, "");
 
-	FileChangeMonitor().Run();
+	FileChangeMonitor().run();
 	return 0;
 }
