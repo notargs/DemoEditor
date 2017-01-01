@@ -89,7 +89,7 @@ public:
 
 class Music
 {
-	const int m_duration = 22;
+	const int m_duration = 32;
 	const int m_rate = 44100;
 	const int m_numChannels = 2;
 
