@@ -8,8 +8,10 @@
 #include "glext.h"
 #include "glextImpl.h"
 #include <fstream>
+#include <Mmreg.h>
 
 #pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "winmm.lib")
 
 class Shader
 {
@@ -72,12 +74,99 @@ public:
 	void Link() const
 	{
 		glLinkProgram(m_program);
+	}
+
+	void Use()
+	{
 		glUseProgram(m_program);
 	}
 
 	GLuint GetProgram() const
 	{
 		return m_program;
+	}
+};
+
+class Music
+{
+	const int m_duration = 22;
+	const int m_rate = 44100;
+	const int m_numChannels = 2;
+
+	const int m_numSamples = m_duration * m_rate;
+	const int m_numSampleEsc = m_numSamples * m_numChannels;
+	HWAVEOUT h_wave_out = 0;
+
+	std::vector<float> m_buffer;
+public:
+	Music()
+	{
+		m_buffer.resize(m_numSampleEsc);
+	}
+
+	std::vector<float> MakeSound(HWND hWnd)
+	{
+		GLuint	vbo;
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, m_numSampleEsc * sizeof(float), nullptr, GL_DYNAMIC_COPY);
+
+		ShaderProgram shaderProgram;
+		const char* varyings[] = { "out_sample" };
+		glTransformFeedbackVaryings(shaderProgram.GetProgram(), 1, varyings, GL_INTERLEAVED_ATTRIBS);
+		auto vertexShader = Shader("Test/sound.glsl", GL_VERTEX_SHADER);
+		vertexShader.Bind(shaderProgram.GetProgram());
+		shaderProgram.Link();
+		shaderProgram.Use();
+
+		glEnable(GL_RASTERIZER_DISCARD);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, vbo);
+
+		glBeginTransformFeedback(GL_POINTS);
+		glDrawArrays(GL_POINTS, 0, m_numSamples);
+		glEndTransformFeedback();
+
+		glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, m_numSampleEsc * sizeof(float), &m_buffer[0]);
+		glDisable(GL_RASTERIZER_DISCARD);
+
+		WAVEFORMATEX wave_format =
+		{
+			WAVE_FORMAT_IEEE_FLOAT,
+			m_numChannels,
+			m_rate,
+			m_rate * sizeof(float) * m_numChannels,
+			sizeof(float)*m_numChannels,
+			sizeof(float) * 8,
+			0
+		};
+		WAVEHDR wave_hdr =
+		{
+			reinterpret_cast<LPSTR>(&m_buffer[0]),
+			m_buffer.size() * sizeof(float),
+			0,
+			0,
+			0,
+			0,
+			nullptr,
+			0
+		};
+
+		if (h_wave_out != nullptr)
+		{
+			waveOutReset(h_wave_out);
+		}
+
+		waveOutOpen(&h_wave_out, WAVE_MAPPER, &wave_format, reinterpret_cast<DWORD_PTR>(hWnd), 0, CALLBACK_WINDOW);
+		waveOutPrepareHeader(h_wave_out, &wave_hdr, sizeof(wave_hdr));
+		waveOutWrite(h_wave_out, &wave_hdr, sizeof(wave_hdr));
+
+		return m_buffer;
+	}
+
+	void Play(HWND hwnd)
+	{
+		MakeSound(hwnd);
 	}
 };
 
@@ -151,6 +240,7 @@ public:
 	void CreateShaderProgram()
 	{
 		m_shaderProgram = std::make_unique<ShaderProgram>();
+		m_shaderProgram->Use();
 
 		m_vertexShader = std::make_unique<Shader>("Test/vertex.glsl", GL_VERTEX_SHADER);
 		m_fragmentShader = std::make_unique<Shader>("Test/fragment.glsl", GL_FRAGMENT_SHADER);
@@ -162,13 +252,16 @@ public:
 	
 	void Run()
 	{
+
 		m_fileChangeMonitor = std::make_unique<FileChangeMonitor>();
 		m_fileChangeMonitor->Init(_T("Test"));
 
 		m_glContext = std::make_unique<GLContext>();
 		CreateShaderProgram();
 
-		
+		Music music;
+		music.Play(m_glContext->GetWindowHandle());
+
 		auto startTime = std::chrono::system_clock::now();
 
 		while (m_glContext->Update())
@@ -184,14 +277,16 @@ public:
 			if (changes.size() > 0)
 			{
 				// ‰Šú‰»
-				startTime = std::chrono::system_clock::now();
 				CreateShaderProgram();
+				music.Play(m_glContext->GetWindowHandle());
+				startTime = std::chrono::system_clock::now();
 			}
 
 			auto timeLocation = glGetUniformLocation(m_shaderProgram->GetProgram(), "time");
 			auto time = std::chrono::duration_cast<std::chrono::milliseconds>(startTime - std::chrono::system_clock::now()).count() / 1000.0f;
 			glUniform1f(timeLocation, time);
 
+			m_shaderProgram->Use();
 			glRecti(1, 1, -1, -1);
 			m_glContext->Swap();
 		}
