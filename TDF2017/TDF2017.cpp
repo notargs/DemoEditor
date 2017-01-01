@@ -168,7 +168,8 @@ public:
 		m_glContext = std::make_unique<GLContext>();
 		CreateShaderProgram();
 
-		auto startTime = GetTickCount();
+		
+		auto startTime = std::chrono::system_clock::now();
 
 		while (m_glContext->Update())
 		{
@@ -182,11 +183,14 @@ public:
 			auto changes = m_fileChangeMonitor->ReadChanges();
 			if (changes.size() > 0)
 			{
+				// ‰Šú‰»
+				startTime = std::chrono::system_clock::now();
 				CreateShaderProgram();
 			}
 
 			auto timeLocation = glGetUniformLocation(m_shaderProgram->GetProgram(), "time");
-			glUniform1i(timeLocation, startTime - static_cast<int>(GetTickCount()));
+			auto time = std::chrono::duration_cast<std::chrono::milliseconds>(startTime - std::chrono::system_clock::now()).count() / 1000.0f;
+			glUniform1f(timeLocation, time);
 
 			glRecti(1, 1, -1, -1);
 			m_glContext->Swap();
