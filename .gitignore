@@ -3,3 +3,4 @@ Debug/
 *.db
 *.opendb
 ipch/
+*.user
