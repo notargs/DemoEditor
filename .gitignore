@@ -4,3 +4,6 @@ Debug/
 *.opendb
 ipch/
 *.user
+bin/
+obj/
+project/

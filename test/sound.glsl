@@ -69,9 +69,30 @@ float strings(float time)
     return sound * max(0.0, (1.0 - t * 2.0));
 }
 
-vec2 bass(float time)
+float bass(float time)
 {
-    return vec2(1, 1);
+    time = mod(time, 8.0);
+    if (time < 2.0)
+    {
+        return rect(time * calcHertz(0.0));
+    }
+    if (time > 3.0 && time < 3.5)
+    {
+        return rect(time * calcHertz(0.0));
+    }
+    if (time < 4.0)
+    {
+        return rect(time * calcHertz(12.0));
+    }
+    if (time < 6.0)
+    {
+        return rect(time * calcHertz(11.0));
+    }
+    if (time < 8.0)
+    {
+        return rect(time * calcHertz(-1.0));
+    }
+    return 0;
 }
 
 vec2 mainSound(float time)
@@ -81,6 +102,7 @@ vec2 mainSound(float time)
     sound += snereDrum(time) * 0.5;
     sound += hiHat(time) * 0.5;
     sound += strings(time) * 0.2;
+    sound += bass(time) * 0.2;
     if (abs(sound) > 1.0) sound /= abs(sound);
     return vec2(sound);
 }

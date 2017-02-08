@@ -1,60 +1,17 @@
-#include "stdafx.h"
 #include <ios>
 #include <iostream>
-#include "FileChangeMonitor.h"
+#include "FileChangeMonitor.hpp"
 #include <thread>
 #include <windows.h>
 #include <GL/gl.h>
-#include "glext.h"
-#include "glextImpl.h"
+#include "glext.hpp"
+#include "glextImpl.hpp"
+#include "shader.hpp"
 #include <fstream>
 #include <Mmreg.h>
 
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "winmm.lib")
-
-class Shader
-{
-	GLuint m_shader;
-public:
-
-	Shader(std::string fileName, GLenum shaderType)
-	{
-		std::ifstream fileStream(fileName);
-		std::string text((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
-		auto pText = text.c_str();
-		m_shader = glCreateShader(shaderType);
-		glShaderSource(m_shader, 1, &pText, nullptr);
-		glCompileShader(m_shader);
-
-		// ƒƒO‚ðŽæ“¾
-		GLsizei bufSize;
-
-		glGetShaderiv(m_shader, GL_INFO_LOG_LENGTH, &bufSize);
-
-		if (bufSize > 1) {
-			auto infoLog = static_cast<GLchar *>(malloc(bufSize));
-
-			if (infoLog != nullptr) {
-				GLsizei length;
-
-				glGetShaderInfoLog(m_shader, bufSize, &length, infoLog);
-				std::cout << infoLog << std::endl;
-				free(infoLog);
-			}
-		}
-	}
-
-	~Shader()
-	{
-		glDeleteShader(m_shader);
-	}
-
-	void Bind(GLuint program) const
-	{
-		glAttachShader(program, m_shader);
-	}
-};
 
 class ShaderProgram
 {
@@ -253,8 +210,7 @@ public:
 	void Run()
 	{
 
-		m_fileChangeMonitor = std::make_unique<FileChangeMonitor>();
-		m_fileChangeMonitor->Init(_T("Test"));
+		m_fileChangeMonitor = FileChangeMonitor::create(L"test");
 
 		m_glContext = std::make_unique<GLContext>();
 		CreateShaderProgram();
@@ -273,7 +229,7 @@ public:
 			auto resolutionLocation = glGetUniformLocation(m_shaderProgram->GetProgram(), "resolution");
 			glUniform2f(resolutionLocation, rect.right, rect.bottom);
 
-			auto changes = m_fileChangeMonitor->ReadChanges();
+			auto changes = m_fileChangeMonitor->read_changes();
 			if (changes.size() > 0)
 			{
 				// ‰Šú‰»
@@ -289,6 +245,8 @@ public:
 			m_shaderProgram->Use();
 			glRecti(1, 1, -1, -1);
 			m_glContext->Swap();
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(16));
 		}
 
 		m_vertexShader = nullptr;
