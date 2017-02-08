@@ -43,7 +43,7 @@ class FileChangeMonitor : PrivateConstructors
 	{
 		m_directoryName = directoryName;
 
-		m_directoryHandle = CreateFile(L"test", FILE_LIST_DIRECTORY,
+		m_directoryHandle = CreateFile(directoryName.c_str(), FILE_LIST_DIRECTORY,
 		                               FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
 		                               OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
 
@@ -121,8 +121,7 @@ public:
 					begin_read_changes();
 					break;
 				}
-				pData = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(
-					reinterpret_cast<unsigned char*>(pData) + pData->NextEntryOffset);
+				pData = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(reinterpret_cast<unsigned char*>(pData) + pData->NextEntryOffset);
 			}
 		}
 	}
