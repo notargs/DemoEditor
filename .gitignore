@@ -7,3 +7,5 @@ ipch/
 bin/
 obj/
 project/
+*.sln
+*.vcxproj
