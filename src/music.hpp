@@ -4,7 +4,7 @@
 
 class Music
 {
-	const int m_duration = 32;
+	const int m_duration = 128;
 	const int m_rate = 44100;
 	const int m_numChannels = 2;
 
@@ -29,7 +29,7 @@ public:
 		ShaderProgram shaderProgram;
 		const char* varyings[] = { "out_sample" };
 		glTransformFeedbackVaryings(shaderProgram.GetProgram(), 1, varyings, GL_INTERLEAVED_ATTRIBS);
-		auto vertexShader = Shader("Test/sound.glsl", GL_VERTEX_SHADER);
+		auto vertexShader = Shader("Shaders/sound.glsl", GL_VERTEX_SHADER);
 		vertexShader.Bind(shaderProgram.GetProgram());
 		shaderProgram.Link();
 		shaderProgram.Use();

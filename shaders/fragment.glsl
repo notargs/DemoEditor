@@ -367,8 +367,8 @@ float ground(vec3 pos)
 float distFunc(vec3 pos)
 {
     float dist = FLOAT_MAX;
-    dist = min(ground(pos), dist);
-    //dist = min(flower(pos), dist);
+    //dist = min(ground(pos), dist);
+    dist = min(flower(pos), dist);
     //dist = min(cubes(pos), dist);
     return dist;
 }
@@ -397,7 +397,6 @@ vec3 getColor(vec3 pos)
 //-------------------------------------
 // Entry point
 //-------------------------------------
-
 void main(void)
 {
     mat3 rot = rotY(time * 0.3);
@@ -431,5 +430,4 @@ void main(void)
     color = pow(color, vec3(1, 1, 1) * 1.0 / 2.2);
 
     fragColor = vec4(color, 1);
-    
 }

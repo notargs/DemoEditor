@@ -1,9 +1,19 @@
 #version 450
 
 #define PI 3.1415926535
+#define A 0
+#define B 2
+#define C 3
+#define D 5
+#define E 7
+#define F 8
+#define G 10
 
 out vec2 out_sample;
 
+//================================================
+// Utils
+//================================================
 float rand(vec2 co)
 {
 	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
@@ -11,99 +21,195 @@ float rand(vec2 co)
 
 float calcHertz(float scale)
 {
-    return 440.0 * pow(2.0, scale / 12.0);
+    return 441.0 * pow(2.0, scale / 12.0) * PI;
 }
 
-float bassDrum(float time)
+float calcHertz(float octave, float note)
 {
-    float t = mod(time, 1.0) / 3.0 * 8.0;
-    return sin(time * (440.0)) * max(0.0, 1.0 - fract(t) * 8.0);
-}
-
-float snereDrum(float time)
-{
-    float t = mod(time + 0.5, 1.0);
-    return rand(vec2(time * 32.0, 0.0)) * max(0.0, 1.0 - t * 4.0);
-}
-
-float hiHat(float time)
-{
-    float t = time * 16.0;
-    if (mod(t, 16.0) > 3.0 && mod(t, 2.0) > 1.0)
-    {
-        return 0.0;
-    }
-    return rand(vec2(time * 32.0, 0.0)) * max(0.0, 1.0 - fract(t) * 4.0);
+    return calcHertz(octave * 12 + note);
 }
 
 float rect(float time)
 {
-    if (fract(time / PI / 2.0) < 0.5)
-    {
-     	return 1.0;  
-    }
-    else
-    {
-        return 0.0;
-    }
+    return sign(fract(time / PI / 2) - 0.5);
 }
+
+//================================================
+// Sound
+//================================================
+#define Sin1(u, v) ret += clamp(sin(time * calcHertz(u, v)) * (1 - localTime + sin(time * 80.0) * 0.1), -0.3, 0.3);
+#define Rect1(u, v) ret += rect(time * calcHertz(u, v)) * (1 - localTime);
 
 float strings(float time)
 {
-    float t = mod(time * 4.0, 1.0);
-    float sound = 0.0;
-    if (mod(time, 8.0) < 4.0)
+    float loopTime = mod(time, 8);
+    float localTime = mod(time * 2, 1.0);
+    float ret = 0;
+
+    if (loopTime < 2)
     {
-        sound += rect(time * calcHertz(24.0));
-        sound += rect(time * calcHertz(28.0));
-        sound += rect(time * calcHertz(31.0));
-        sound += rect(time * calcHertz(35.0));
+        Sin1(0, F)
+        Sin1(0, C)
+        Sin1(0, G)
+    }
+    else if (loopTime < 4)
+    {
+        Sin1(0, E)
+        Sin1(0, C)
+        Sin1(0, G)
+    }
+    else if (loopTime < 6)
+    {
+        Sin1(0, D)
+        Sin1(0, C) 
+        Sin1(0, G)
+    }
+    else 
+    {
+        Sin1(0, E) 
+        Sin1(0, C) 
+        Sin1(0, G)
+    }
+    return ret;
+}
+
+float base(float time)
+{
+    float loopTime = mod(time, 8);
+    float localTime = 0;
+    if (mod(loopTime, 2) < 1)
+    {
+        localTime = mod(time * 2, 1.0);
     }
     else
     {
-        sound += rect(time * calcHertz(23.0));
-        sound += rect(time * calcHertz(26.0));
-        sound += rect(time * calcHertz(30.0));
-        sound += rect(time * calcHertz(33.0));
+        localTime = mod(time * 2 + 0.5, 1.0);
     }
-    return sound * max(0.0, (1.0 - t * 2.0));
+    
+    float ret = 0;
+
+    if (loopTime < 2)
+    {
+        Rect1(-2, F)
+    }
+    else if (loopTime < 4)
+    {
+        Rect1(-2, E)
+    }
+    else if (loopTime < 6)
+    {
+        Rect1(-2, D)
+    }
+    else 
+    {
+        Rect1(-2, E)
+    }
+    return ret;
 }
 
-float bass(float time)
+float poly(float time)
 {
-    time = mod(time, 8.0);
-    if (time < 2.0)
+    float loopTime = mod(time * 8, 8);
+    float localTime = mod(time * 8, 1.0);
+    float ret = 0;
+
+    if (loopTime < 1)
     {
-        return rect(time * calcHertz(0.0));
+        Sin1(1, G)
     }
-    if (time > 3.0 && time < 3.5)
+    else if (loopTime < 2)
     {
-        return rect(time * calcHertz(0.0));
+        Sin1(2, D)
     }
-    if (time < 4.0)
+    else if (loopTime < 3)
     {
-        return rect(time * calcHertz(12.0));
+        Sin1(2, F)
     }
-    if (time < 6.0)
+    else if (loopTime < 4)
     {
-        return rect(time * calcHertz(11.0));
+        Sin1(2, G)
     }
-    if (time < 8.0)
+    else if (loopTime < 5)
     {
-        return rect(time * calcHertz(-1.0));
+        Sin1(3, C)
     }
-    return 0;
+    else if (loopTime < 6)
+    {
+        Sin1(2, G)
+    }
+    else if (loopTime < 7)
+    {
+        Sin1(2, E)
+    }
+    else if (loopTime < 8)
+    {
+        Sin1(2, C)
+    }
+    return ret;
+}
+
+vec2 noiseSound(float time)
+{
+    float loopTime = mod(time, 4);
+    vec2 ret;
+    if (loopTime < 2)
+    {
+        ret.x = rand(vec2(time * 100, 0)) * 0.1;
+        ret.y = rand(vec2(time * 100, 1)) * 0.1;
+    }
+    else if (loopTime < 3)
+    {
+        float t = max(1 - (loopTime - 2) * 2, 0) * 0.2;
+        ret.x = rand(vec2(time * 100, 0)) * t;
+        ret.y = rand(vec2(time * 100, 1)) * t;
+    }
+    return ret;
+}
+
+float bassDrum(float time)
+{
+    float localTime = mod(time * 4, 2);
+    float ret;
+    ret += rect(max(0, 1 - localTime * 2) * localTime * 300) * max(0, 1 - localTime * 4);
+    return ret;
 }
 
 vec2 mainSound(float time)
 {
-    float sound = 0.0;
-    sound += bassDrum(time) * 0.5;
-    sound += snereDrum(time) * 0.5;
-    sound += hiHat(time) * 0.5;
-    sound += strings(time) * 0.2;
-    sound += bass(time) * 0.2;
-    if (abs(sound) > 1.0) sound /= abs(sound);
+    vec2 sound = vec2(0.0);
+    if (time < 16)
+    {
+        sound += strings(time) * vec2(0.55, 0.6);
+    }
+    else if (time < 32)
+    {
+        sound += strings(time) * vec2(0.55, 0.6);
+        sound += base(time) * vec2(0.4, 0.38);
+    }
+    else if (time < 48)
+    {
+        sound += strings(time) * vec2(0.55, 0.6);
+        sound += base(time) * vec2(0.4, 0.38);
+        sound += poly(time) * vec2(0.2, 0.3);
+    }
+    else if (time < 64)
+    {
+        sound += strings(time) * vec2(0.55, 0.6);
+        sound += base(time) * vec2(0.4, 0.38);
+        sound += poly(time) * vec2(0.2, 0.3);
+        sound += bassDrum(time) * 0.4;
+    }
+    else if (time < 80)
+    {
+        sound += strings(time) * vec2(0.55, 0.6);
+        sound += base(time) * vec2(0.4, 0.38);
+    }
+    else if (time < 96)
+    {
+        sound += strings(time) * vec2(0.55, 0.6);
+    }
+    sound += noiseSound(time);
+    sound = clamp(sound, -vec2(1), vec2(1));
     return vec2(sound);
 }
 
@@ -111,5 +217,5 @@ void main()
 {
     float time = gl_VertexID / 44100.0;
     
-    out_sample = mainSound(time) * 0.5;
+    out_sample = mainSound(time) * 0.2;
 }
