@@ -25,14 +25,14 @@ public:
 		glGetShaderiv(m_shader, GL_INFO_LOG_LENGTH, &bufSize);
 
 		if (bufSize > 1) {
-			auto infoLog = static_cast<GLchar *>(malloc(bufSize));
+			auto infoLog = new GLchar[bufSize];
 
 			if (infoLog != nullptr) {
 				GLsizei length;
 
 				glGetShaderInfoLog(m_shader, bufSize, &length, infoLog);
 				std::cout << infoLog << std::endl;
-				free(infoLog);
+				delete[] infoLog;
 			}
 		}
 	}

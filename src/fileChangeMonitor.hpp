@@ -110,9 +110,7 @@ public:
 
 			while (true)
 			{
-				FileAction action;
-				action.m_actionType = static_cast<FileActionType>(pData->Action);
-				action.m_fileName = tstring(pData->FileName).substr(0, pData->FileNameLength / sizeof(TCHAR));
+				FileAction action(static_cast<FileActionType>(pData->Action), tstring(pData->FileName).substr(0, pData->FileNameLength / sizeof(TCHAR)));
 
 				fileActions.push_back(action);
 

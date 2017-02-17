@@ -45,27 +45,17 @@ public:
 		glGetBufferSubData(GL_TRANSFORM_FEEDBACK_BUFFER, 0, m_numSampleEsc * sizeof(float), &m_buffer[0]);
 		glDisable(GL_RASTERIZER_DISCARD);
 
-		WAVEFORMATEX wave_format =
-		{
-			WAVE_FORMAT_IEEE_FLOAT,
-			m_numChannels,
-			m_rate,
-			m_rate * sizeof(float) * m_numChannels,
-			sizeof(float)*m_numChannels,
-			sizeof(float) * 8,
-			0
-		};
-		WAVEHDR wave_hdr =
-		{
-			reinterpret_cast<LPSTR>(&m_buffer[0]),
-			m_buffer.size() * sizeof(float),
-			0,
-			0,
-			0,
-			0,
-			nullptr,
-			0
-		};
+		WAVEFORMATEX wave_format = { 0 };
+		wave_format.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+		wave_format.nChannels = m_numChannels;
+		wave_format.nSamplesPerSec = m_rate;
+		wave_format.nAvgBytesPerSec = m_rate * sizeof(float) * m_numChannels;
+		wave_format.nBlockAlign = sizeof(float)*m_numChannels;
+		wave_format.wBitsPerSample = sizeof(float) * 8;
+
+		WAVEHDR wave_hdr = { nullptr };
+		wave_hdr.lpData = reinterpret_cast<LPSTR>(&m_buffer[0]);
+		wave_hdr.dwBufferLength = m_buffer.size() * sizeof(float);
 
 		if (h_wave_out != nullptr)
 		{
