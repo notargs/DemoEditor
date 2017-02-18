@@ -215,14 +215,25 @@ vec2 mainSound(float time)
     return vec2(sound);
 }
 
+float cube(vec2 pos)
+{
+    float a = (floor(time) + pow(fract(time), 0.5)) * 2.0;
+    mat2 rot = mat2(cos(a), -sin(a), sin(a), cos(a));
+    pos = rot * pos;
+    return max(0, 1 - length(max(abs(pos)-vec2(0.2),0.0)) * 40);
+}
+
 void main() 
 {
     vec2 pos = position;
-    vec3 color = abs(pos.y + mainSound(time + pos.x * 0.1).x * 0.6) * vec3(1, 1, 1) * 5.0;//;
+    vec3 color = abs(pos.y + mainSound(time + pos.x * 0.005).x * 0.6) * vec3(1, 1, 1) * 20.0;//;
     
     color = clamp(color, vec3(0), vec3(1));
     color -= length(pos) * 0.4;
-    color.r = 0.01 / abs(pos.x);
+    color -= min(0.01 / abs(pos.x), 1) * vec3(0.3);
     
+    color -= cube(pos + vec2(1.5,  0.7));
+    color -= cube(pos - vec2(1.5,  0.7));
+
     fragColor = vec4(color, 1);
 }
