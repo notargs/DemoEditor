@@ -181,7 +181,7 @@ vec2 mainSound(float time)
     vec2 sound = vec2(0.0);
     if (time < 16)
     {
-        //sound += strings(time) * vec2(0.55, 0.6);
+        sound += strings(time) * vec2(0.55, 0.6);
     }
     else if (time < 32)
     {
