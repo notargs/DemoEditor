@@ -61,7 +61,7 @@ public:
 			}
 
 			auto timeLocation = glGetUniformLocation(m_shaderProgram->GetProgram(), "time");
-			auto time = std::chrono::duration_cast<std::chrono::milliseconds>(startTime - std::chrono::system_clock::now()).count() / 1000.0f;
+			auto time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - startTime).count() / 1000.0f;
 			glUniform1f(timeLocation, time);
 
 			m_shaderProgram->Use();
